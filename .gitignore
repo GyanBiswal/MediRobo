@@ -1,0 +1,21 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Environment variables (secrets!)
+.env
+
+# Vector store (regenerated from source PDFs, don't commit binary index files)
+vectorstore/*.faiss
+vectorstore/*.pkl
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Streamlit
+.streamlit/secrets.toml
