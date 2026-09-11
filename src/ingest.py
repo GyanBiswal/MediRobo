@@ -1,13 +1,15 @@
 """
-PDF ingestion for the Medical RAG Chatbot.
-Loads all PDFs from the data directory using LangChain's PyPDFLoader
-and returns a list of LangChain Document objects (one per page).
+PDF ingestion and text splitting for the Medical RAG Chatbot.
+
+Pipeline so far:
+    PDFs -> LangChain PyPDFLoader -> page-level Documents -> text splitter -> chunks
 """
 
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from src.config import DATA_DIR
+from src.config import DATA_DIR, CHUNK_SIZE, CHUNK_OVERLAP
 
 
 def load_pdfs(data_dir: Path = DATA_DIR):
@@ -34,15 +36,46 @@ def load_pdfs(data_dir: Path = DATA_DIR):
         all_documents.extend(documents)
         print(f"Loaded {len(documents)} pages from {pdf_path.name}")
 
-    print(f"\nTotal pages loaded: {len(all_documents)}")
+    print(f"Total pages loaded: {len(all_documents)}")
     return all_documents
 
 
-if __name__ == "__main__":
-    docs = load_pdfs()
+def split_documents(documents, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHUNK_OVERLAP):
+    """
+    Split page-level Documents into smaller overlapping chunks.
 
-    # Quick sanity check: show the first document's content and metadata
-    if docs:
-        print("\n--- Sample document ---")
-        print("Metadata:", docs[0].metadata)
-        print("Content preview:", docs[0].page_content[:300])
+    Args:
+        documents: list[Document] from load_pdfs()
+        chunk_size: max characters per chunk
+        chunk_overlap: characters shared between consecutive chunks,
+            so a sentence/idea split across a chunk boundary isn't lost.
+
+    Returns:
+        list[Document]: smaller chunks, each still carrying the original
+        'source' and 'page' metadata (LangChain propagates it automatically).
+    """
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        separators=["\n\n", "\n", ". ", " ", ""],  # tries paragraph breaks first, then sentences, then words
+    )
+
+    chunks = splitter.split_documents(documents)
+    print(f"Split {len(documents)} pages into {len(chunks)} chunks")
+    return chunks
+
+
+def load_and_split():
+    """Convenience function: load PDFs and split them in one call."""
+    documents = load_pdfs()
+    chunks = split_documents(documents)
+    return chunks
+
+
+if __name__ == "__main__":
+    chunks = load_and_split()
+
+    print("\n--- Sample chunk ---")
+    print("Metadata:", chunks[0].metadata)
+    print("Content:", chunks[0].page_content)
+    print(f"\nChunk length (characters): {len(chunks[0].page_content)}")
